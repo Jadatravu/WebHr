@@ -20,6 +20,19 @@ from modelsapp.forms import ViewContactForm
 from modelsapp.models import Address
 from modelsapp.forms import ESearchForm
 
+from modelsapp.models import SkillTitle
+from modelsapp.forms import SkillTitleForm
+
+from modelsapp.models import Skill
+
+from modelsapp.models import Holiday
+
+from modelsapp.models import LeaveBalance
+
+from modelsapp.models import Leave
+
+import datetime
+
 from django.contrib.auth import (REDIRECT_FIELD_NAME, login as auth_login,
     logout as auth_logout, get_user_model, update_session_auth_hash)
 from django.contrib.sites.shortcuts import get_current_site
@@ -30,11 +43,324 @@ from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, Set
 from django.contrib.auth import authenticate, logout
 from django.contrib import auth
 
+from django.contrib.auth.models import User
+
 import logging
 logger = logging.getLogger(__name__)
 
 
 # Create your views here.
+def approveleave(request):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    con_list = Contact.objects.filter(login_name=request.user.username)
+    logger.debug ("con_list len  %d"%len(con_list))
+    lea_list=[]
+    if (len(con_list) > 0):
+        lea_list = Leave.objects.filter(app_id=con_list[0].id)
+
+    logger.debug ("lea_list len  %d"%len(lea_list))
+    return render_to_response(
+                      'approveleave.html',
+                       {'user':request.user,'leave_list':lea_list},
+                       context_instance=RequestContext(request)
+                     )#
+    pass
+
+def approveleave_form(request):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    if request.method == 'POST':
+        comment = request.POST['comment']
+        leave_id = request.POST['leave_id']
+        lea = Leave.objects.get(id=leave_id)
+        lea.app_date=datetime.datetime.now()
+        lea.app_comment=comment
+        lea.state=1 #approved
+        lea.save()
+        logger.debug("leave state : %d"%lea.state)
+        logger.debug("leave app comment : %s"%lea.app_comment)
+        return render_to_response(
+                      'approveleaveform.html',
+                       {'user':request.user,'leave':lea},
+                       context_instance=RequestContext(request)
+                     )#
+
+def approveleaveform(request,leave_id):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    lea = Leave.objects.get(id=leave_id)
+    return render_to_response(
+                      'approveleaveform.html',
+                       {'user':request.user,'leave':lea},
+                       context_instance=RequestContext(request)
+                     )#
+
+
+def applyleaveform(request):
+    #if (request.user.is_authenticated() == False):
+    #if request.user.is_authenticated() and request.user.is_superuser:
+    if request.user.is_authenticated():
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    logger.debug("this is  apply leaves form")
+    message=""
+    if request.method == 'POST':
+        fm_date = request.POST['datevalue']
+        t_date = request.POST['datevalue1']
+        comment = request.POST['comment']
+        con_id = request.POST['contact_id']
+        tpe = request.POST['type']
+        logger.debug("from date => %s"%fm_date)
+        logger.debug("to date => %s"%t_date)
+        logger.debug("comment => %s"%comment)
+        from_date_list = str(fm_date).split('/')
+        to_date_list = str(t_date).split('/')
+        if (len(from_date_list) > 1 and len(to_date_list) > 1):
+             f_date = datetime.date(int(from_date_list[2]),int(from_date_list[0]),int(from_date_list[1]))
+             t_date = datetime.date(int(to_date_list[2]),int(to_date_list[0]),int(to_date_list[1]))
+             d=f_date
+             no_applying_leaves = 0
+             #calculate no_of_days_leave considering holidays,earlier applied leaves
+             time_delta = datetime.timedelta(1)
+             while ((t_date -d) > datetime.timedelta(0)):
+                 is_h_day = 0
+                 h_day_list=Holiday.objects.all()
+                 #check d is holiday
+                 for hd in h_day_list:
+                     if hd.h_date == d:
+                        is_h_day=1
+                 #check d is a saturday/sunday
+                 if is_h_day == 0:
+                     if (d.weekday() == 5 or d.weekday() ==6) :
+                        is_h_day=1
+                 #check d is already applied leave day 
+                 if is_h_day == 0:
+                    contact=Contact.objects.get(id=con_id)
+                    leave_list = Leave.objects.filter(requester=contact)
+                    for leave in leave_list:
+                        if leave.count == 1:
+                           if leave.from_date == d:
+                               is_h_day=1
+                        elif leave.count > 1:
+                            l_day = leave.from_date
+                            while (l_day < leave.to_date):
+                                if l_day == d:
+                                    is_h_day=1
+                                l_day = l_day + time_delta
+                 if is_h_day == 0:
+                     no_applying_leaves += 1
+                 d=d+time_delta
+             #if the leave balance is sufficient update leave_balance_table,Leave Table
+             logger.debug("no_applying leaves => %d"%no_applying_leaves)
+             cont=Contact.objects.get(id=con_id)
+             le_balance=LeaveBalance.objects.filter(contact=cont)
+             logger.debug(le_balance[0].sick_leave_balance)
+             logger.debug(le_balance[0].earned_leave_balance)
+             logger.debug("type => %d"%int(tpe))
+             if (int(tpe) == 0):
+                if ((no_applying_leaves > 0) and ( le_balance[0].sick_leave_balance - no_applying_leaves > -1)):
+                     logger.debug("sick no_applying leaves => %d"%no_applying_leaves)
+                     logger.debug("app_id => %d"%cont.supervisor.sup_id)
+                     logger.debug("app_id => %d"%cont.supervisor_id)
+                     apply_leave = Leave(requester=cont, app_id=cont.supervisor.sup_id,from_date=f_date,to_date=t_date,count=no_applying_leaves,state=0,type=tpe,req_comment=comment,app_comment="-")
+                     apply_leave.save()
+                     #le_balance[0].sick_leave_balance = le_balance[0].sick_leave_balance - no_applying_leaves
+                     sick_leave_bal = le_balance[0].sick_leave_balance 
+                     sick_leave_bal = sick_leave_bal - no_applying_leaves
+                     le_balance[0].sick_leave_balance = sick_leave_bal
+                     logger.debug("sick_leave_ balance %d"%le_balance[0].sick_leave_balance)
+                     logger.debug("sick_leave_ bal %d"%sick_leave_bal)
+                     leave_id = le_balance[0].id
+                     le_bal=LeaveBalance.objects.get(id=leave_id)
+                     le_bal.sick_leave_balance = sick_leave_bal
+                     le_bal.save()
+                     logger.debug("sick_leave_ balance %d"%le_balance[0].sick_leave_balance)
+                     logger.debug("sick_leave_ balance %d"%le_bal.sick_leave_balance)
+                if (( le_balance[0].sick_leave_balance - no_applying_leaves < 0)):
+                    message = "Insufficient Leave Balance"
+             elif (int(tpe) == 1):
+                if ((no_applying_leaves > 0) and ( le_balance[0].earned_leave_balance - no_applying_leaves > -1)):
+                     logger.debug("earned no_applying leaves => %d"%no_applying_leaves)
+                     apply_leave = Leave(requester=cont, app_id=cont.supervisor_id,from_date=f_date,to_date=t_date,count=no_applying_leaves,state=0,type=tpe,req_comment=comment,app_comment="-")
+                     apply_leave.save()
+                     earned_leave_bal = le_balance[0].earned_leave_balance 
+                     earned_leave_bal = earned_leave_bal -  no_applying_leaves
+                     leave_id = le_balance[0].id
+                     le_bal=LeaveBalance.objects.get(id=leave_id)
+                     le_bal.earned_leave_balance = earned_leave_bal
+                     le_bal.save()
+                     logger.debug("earned_leave balance %d"%le_bal.earned_leave_balance)
+                if (( le_balance[0].earned_leave_balance - no_applying_leaves < 0)):
+                    message = "Insufficient Leave Balance"
+                 
+             #send error message if the leave balance is not sufficient
+    leave_balance_list=[]
+    contacts_list = Contact.objects.filter(login_name=request.user.username) 
+    for con in contacts_list:
+       logger.debug("id => %d"%con.id)
+       le_bl=LeaveBalance.objects.filter(contact=con)
+       leave_balance_list.append(le_bl[0])
+    logger.debug("leave_balance_list => %d"%len(leave_balance_list))
+    logger.debug("user => %s"%request.user.username)
+    logger.debug("len => %d"%len(contacts_list))
+    return render_to_response(
+                      'applyleave.html',
+                       {'user':request.user,'contacts_list':contacts_list, 'msg':message,'leave_bal_list':leave_balance_list},
+                       context_instance=RequestContext(request)
+                     )#
+
+def releaseleaves(request):
+    sick_leave_add = 1
+    earned_leave_add = 1
+    #if (request.user.is_authenticated() == False):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    logger.debug("this is  release leaves form")
+    contacts_list = Contact.objects.all()
+    for con in contacts_list:
+       le_balance=LeaveBalance.objects.filter(contact=con)
+       if (len(le_balance) > 0):
+            le_balance[0].sick_leave_balance += sick_leave_add
+            le_balance[0].earned_leave_balance +=earned_leave_add 
+            le_balance[0].save()
+       else:
+          le_bal = LeaveBalance(contact=con, sick_leave_balance=sick_leave_add, earned_leave_balance=earned_leave_add)
+          le_bal.save()
+    le_bal_list=LeaveBalance.objects.all()
+    logger.debug ("h_len %d "%len(le_bal_list))
+    return render_to_response(
+                      'releaseleaves.html',
+                       {'leave_balance_list': le_bal_list, 'user':request.user},
+                       context_instance=RequestContext(request)
+                     )#
+
+def addholidayform(request):
+    #if (request.user.is_authenticated() == False):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    logger.debug("this is  add holiday form")
+    if request.method == 'POST':
+        da_value = request.POST['datevalue']
+        h_name = request.POST['h_name']
+        logger.debug ("h_date %s "%da_value)
+        da_value_list = da_value.split('/')
+        holiday_date=da_value_list[2]+str('-')+da_value_list[0]+str('-')+da_value_list[1]
+        h_day=Holiday(holiday_name=h_name,h_date=holiday_date)
+        h_day.save()
+        return HttpResponseRedirect(reverse('modelsapp.views.addholidayform'))
+    holidays_list=Holiday.objects.filter(h_date__year=datetime.datetime.now().year)
+    #holidays_list=[]
+    logger.debug ("h_len %d "%len(holidays_list))
+    return render_to_response(
+                      'addholiday.html',
+                       {'holidays': holidays_list, 'user':request.user},
+                       context_instance=RequestContext(request)
+                     )#
+
+def skillcontactaddform(request):
+    #if (request.user.is_authenticated() == False):
+    #if request.user.is_authenticated() and request.user.is_superuser:
+    if request.user.is_authenticated():
+        logger.debug ("log 0 =>request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    logger.debug("this is skill title contact add form")
+    if request.method == 'POST':
+        exper_years1 = request.POST['years']
+        skill_title1 = request.POST['title']
+        exper_level1 = request.POST['exper']
+        con_id = request.POST['con_id']
+        sk=Skill(skill_name=skill_title1,exp_years=exper_years1,exp_level=exper_years1)
+        sk.save()
+        contact=Contact.objects.get(id=con_id)
+        """
+        contacts_list=Contact.objects.filter(login_name__contains=request.user)
+        if( len(contacts_list) > 0):
+            sk.contact.add(contacts_list[0])
+        """
+        sk.contact.add(contact)
+        return HttpResponseRedirect(reverse('modelsapp.views.skillcontactaddform'))
+    else:
+        logger.debug (" log 1 =>request user %s is authenticated"%request.user.username)
+        contacts_list=Contact.objects.filter(login_name__contains=request.user.username)
+        logger.debug (" log 1 =>contacts_list len %d is authenticated"%len(contacts_list))
+        skill_contact_list={}
+        for ct in contacts_list:
+           skill_contact_list[ct]=ct.skill_set.all()
+           
+        if( len(contacts_list) > 0):
+             skill_list=contacts_list[0].skill_set.all()
+             logger.debug (" log 1 =>skill_list len %d is authenticated"%len(skill_list))
+             tit_list = SkillTitle.objects.all() 
+             year_list=[1,2,3,4,5,6,7,8,9,10,11,12]
+             exp_level_list=[1,2,3,4,5]
+             return render_to_response(
+                      'skilladdcontact.html',
+                       {'skill': skill_list,'ylist': year_list,'elist':exp_level_list,'title_list':tit_list,'user':request.user, 'contact_list':contacts_list,'skill_contact_list':skill_contact_list},
+                       #{'form': form},
+                       context_instance=RequestContext(request)
+                     )#
+
+def skilltitleaddform(request):
+    #if (request.user.is_authenticated() == False):
+    if request.user.is_authenticated() and request.user.is_superuser:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    logger.debug("this is skill title add form")
+    if request.method == 'POST':
+        form = SkillTitleForm(request.POST)
+        if form.is_valid():
+            newdoc = SkillTitle(skill_title = request.POST['skill_title'])
+            newdoc.save()
+            return HttpResponseRedirect(reverse('modelsapp.views.skilltitleaddform'))
+    else:
+        form = SkillTitleForm()
+    documents = SkillTitle.objects.all()
+    return render_to_response(
+        'skilltitleadd.html',
+        {'skilltitle': documents, 'form': form,'user':request.user},
+        #{'form': form},
+        context_instance=RequestContext(request)
+    )#
+       
+
 def deletecontactform(request,con_id):
     #if (request.user.is_authenticated() == False):
     if request.user.is_authenticated() and request.user.is_superuser:
@@ -90,6 +416,7 @@ def editcontactform(request,con_id):
             last_name1 = request.POST['last_name']
             first_name1 = request.POST['first_name']
             sur_name1 = request.POST['sur_name']
+            log_name1 = request.POST['log_name']
             email1 = request.POST['email']
             emp_id1 = request.POST['emp_id']
             phone1 = request.POST['phone']
@@ -115,6 +442,7 @@ def editcontactform(request,con_id):
                con_obj.first_name = first_name1
                con_obj.last_name = last_name1
                con_obj.sur_name = sur_name1
+               con_obj.login_name = log_name1
                con_obj.email = email1
                con_obj.emp_id = emp_id1
                con_obj.supervisor = sup1
@@ -131,7 +459,7 @@ def editcontactform(request,con_id):
             # Redirect to the document list after POST
             return HttpResponseRedirect(reverse('modelsapp.views.editcontact'))
     else:
-        default_data={'c_id':document.id,'old_pic':document.picture,'picture':document.picture,'first_name':document.first_name,'last_name':document.last_name,'sur_name':document.sur_name,'email':document.emp_id,'phone':document.phone,'email':document.email,'emp_id':document.emp_id,'H_No':document.address.H_No,'Line1':document.address.Line1,'street':document.address.street,'colony':document.address.colony,'city':document.address.city,'pin':document.address.pin}
+        default_data={'c_id':document.id,'old_pic':document.picture,'picture':document.picture,'first_name':document.first_name,'last_name':document.last_name,'sur_name':document.sur_name,'log_name':document.login_name,'email':document.emp_id,'phone':document.phone,'email':document.email,'emp_id':document.emp_id,'H_No':document.address.H_No,'Line1':document.address.Line1,'street':document.address.street,'colony':document.address.colony,'city':document.address.city,'pin':document.address.pin}
         form = ContactForm(default_data) 
 
     # Load documents for the list page
@@ -139,12 +467,14 @@ def editcontactform(request,con_id):
     supervisors = Supervisor.objects.all()
     jobtitle = JobTitle.objects.all()
     department = Department.objects.all()
+    users_list = User.objects.all()
+    #users_list = []
 
     # Render list page with the documents and the form
     return render_to_response(
         'econtactform.html',
         #{'documents': documents, 'form': form},
-        {'form': form,'supervisors':supervisors,'jobtitle':jobtitle,'department':department,'supervisor_id':document.supervisor.sup_id, 'jobtitle_name':document.job_title.title, 'department_name':document.department.dep_name,'picture':document.picture},
+        {'form': form,'supervisors':supervisors,'jobtitle':jobtitle,'department':department,'supervisor_id':document.supervisor.sup_id, 'jobtitle_name':document.job_title.title, 'department_name':document.department.dep_name,'picture':document.picture,'user':request.user,  'user_list':users_list},
         context_instance=RequestContext(request)
     )#
 
@@ -166,6 +496,7 @@ def viewcontact(request,con_id):
          #{'form': form},
          context_instance=RequestContext(request)
     )#
+
 def supervisorform(request):
     if request.user.is_authenticated() and request.user.is_superuser:
         logger.debug ("request user %s is authenticated"%request.user.username)
@@ -197,6 +528,7 @@ def supervisorform(request):
         #{'form': form},
         context_instance=RequestContext(request)
     )#
+
 def deletesearchform(request):
     if request.user.is_authenticated() and request.user.is_superuser:
         logger.debug ("request user %s is authenticated"%request.user.username)
@@ -242,6 +574,7 @@ def deletesearchform(request):
         #{'form': form},
         context_instance=RequestContext(request)
     )#
+
 def editsearchform(request):
     if request.user.is_authenticated() and request.user.is_superuser:
         logger.debug ("request user %s is authenticated"%request.user.username)
@@ -287,6 +620,27 @@ def editsearchform(request):
         #{'form': form},
         context_instance=RequestContext(request)
     )#
+def skillsearchform(request):
+    if request.user.is_authenticated():
+        logger.debug ("request user %s is authenticated"%request.user.username)
+    else:
+        logger.debug ("request user %s is authenticated"%request.user.username)
+        c={}
+        c.update(csrf(request))
+        return render_to_response("login.html",c)
+    if request.method == 'POST':
+        search_key = request.POST['title']
+        co_list = Contact.objects.filter(skill__skill_name__contains=search_key)
+    else:
+        co_list = None
+    tit_list = SkillTitle.objects.all() 
+    logger.debug ("request user %d is authenticated"%len(tit_list))
+    return render_to_response(
+                 'skillsearch.html',
+                  {'search': co_list,'title_list':tit_list, 'user':request.user},
+                  context_instance=RequestContext(request)
+    )#
+     
 def esearchform(request):
     if request.user.is_authenticated():
         logger.debug ("request user %s is authenticated"%request.user.username)
@@ -404,15 +758,16 @@ def logout(request):
 
 
 def adminindex(request):
-    username = request.POST['username']
-    password = request.POST['password']
-    user = authenticate(username=username, password= password)
-    if user.is_active:
-       logger.error ( "error message use rname " + request.user.username)
-       logger.debug ( "debug message use rname " + request.user.username)
-       auth_login(request, user)
-    else:
-       logger.debug ( " rname " + request.user.username)
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(username=username, password= password)
+        if user.is_active:
+            logger.error ( "error message use rname " + request.user.username)
+            logger.debug ( "debug message use rname " + request.user.username)
+            auth_login(request, user)
+        else:
+            logger.debug ( " rname " + request.user.username)
     return render_to_response(
             'adminindex.html',
             {'user':request.user},
@@ -456,6 +811,8 @@ def contactform(request):
             last_name1 = request.POST['last_name']
             first_name1 = request.POST['first_name']
             sur_name1 = request.POST['sur_name']
+            log_name1 = request.POST['log_name']
+            logger.debug ("contact form2 %s"% (log_name1))
             email1 = request.POST['email']
             emp_id1 = request.POST['emp_id']
             phone1 = request.POST['phone']
@@ -478,7 +835,7 @@ def contactform(request):
             logger.debug ("old_pic1 " + str(old_pic1))
             if ((int(c_id) == 0) and (old_pic1 == '0')):
                logger.debug ("new contact saving")
-               newdoc = Contact(first_name=first_name1,last_name=last_name1,sur_name=sur_name1,email=email1,emp_id=emp_id1,supervisor=sup1,department=dep1,job_title=job1,phone=phone1,picture=picture1,address=add1)
+               newdoc = Contact(first_name=first_name1,last_name=last_name1,sur_name=sur_name1,login_name=log_name1,email=email1,emp_id=emp_id1,supervisor=sup1,department=dep1,job_title=job1,phone=phone1,picture=picture1,address=add1)
                newdoc.save()
             elif ((int(c_id) > 0)):
                logger.debug ("edited contact saving")
@@ -486,6 +843,7 @@ def contactform(request):
                con_obj.first_name = first_name1
                con_obj.last_name = last_name1
                con_obj.sur_name = sur_name1
+               con_obj.login_name = log_name1
                con_obj.email = email1
                con_obj.emp_id = emp_id1
                con_obj.supervisor = sup1
@@ -497,7 +855,9 @@ def contactform(request):
                   con_obj.picture = old_pic1
                else:
                   con_obj.picture = picture1
+               logger.debug("edit contact saving =>  %s"%log_name1)
                con_obj.save()
+               logger.debug("edit contact saving =>  %s"%con_obj.login_name)
 
 
             # Redirect to the document list after POST
@@ -511,12 +871,13 @@ def contactform(request):
     supervisors = Supervisor.objects.all()
     jobtitle = JobTitle.objects.all()
     department = Department.objects.all()
+    users_list = User.objects.all()
 
     # Render list page with the documents and the form
     return render_to_response(
         'contactform.html',
         #{'documents': documents, 'form': form},
-        {'form': form,'supervisors':supervisors,'jobtitle':jobtitle,'department':department,'user':request.user},
+        {'form': form,'supervisors':supervisors,'jobtitle':jobtitle,'department':department,'user':request.user, 'user_list':users_list},
         context_instance=RequestContext(request)
     )#
 

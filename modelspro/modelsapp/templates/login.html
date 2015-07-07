@@ -39,7 +39,10 @@ footer {
 }
 </style>
 <!-- Include bootstrap stylesheets -->
-    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+    <!--<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">-->
+<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
 </head>
 
 <body>
@@ -52,13 +55,10 @@ footer {
 <div class="col-sm-2" style="background-color:lavender;">
 <table class="table table-striped table-bordered" style=" margin-bottom: 0px;margin-bottom: 0px;height: 302px;width: 222px;width=222px; margin-bottom: 0px">
 <!--<table width="100%" border="0" cellpadding="2" class="table_border">-->
+<tr><td><a href="/Contacts/adminindex">Superuser Operations</a></td></tr>
 <tr><td><a href="/Contacts/admin/esearchform">Contact Search</a></td></tr>
-<tr><td><a href="/Contacts/admin/contactform">Add Contact</a></td></tr>
-<tr><td><a href="/Contacts/admin/jobtitleform">JobTitle Add Form</a></td></tr>
-<tr><td><a href="/Contacts/admin/departmentform">Department Add Form</a></td></tr>
-<tr><td><a href="/Contacts/admin/supervisorform">Supervisor Add Form</a></td></tr>
-<tr><td><a href="/Contacts/admin/editsearchform">Edit Contact</a></td></tr>
-<tr><td><a href="/Contacts/admin/deletesearchform">Delete Contact</a></td></tr>
+<tr><td><a href="/Contacts/applyleave">Apply Leave</a></li></td></tr>
+<tr><td><a href="/Contacts/skillcontactaddform">Skill Contact Add</a></li></td></tr>
 <tr><td><a href="/Contacts/logout">Logout</a></li></td></tr>
 </table>
 </div>
@@ -69,12 +69,24 @@ footer {
             <tr><td></td><td><input type="submit" value="Login"></td></tr>
            </table>-->
 <form action="/Contacts/adminindex/" method="post">{% csrf_token %}
+<!--
     	<center><table summary="Form to get login details." border="1">
             <tr><td>Login Name :</td><td><input name="username" type="text"></td></tr>
             <tr><td>Password :</td><td><input name="password" type="password">
             </td></tr>
             <tr><td>&nbsp;</td><td><input type="submit" value="Login"></td></tr>
         </table></center>
+
+-->
+<div class="form-group">
+      <label for="email" class="col-sm-2">Username:</label>
+      <input type="text" class="col-sm-2" name="username" id="username" placeholder="Enter username"></br>
+    </div>
+    <div class="form-group">
+      <label for="pwd" class="col-sm-2" >Password:</label>
+      <input type="password" class=" col-sm-2" name= "password" id="password" placeholder="Enter password"></br>
+    </div>
+    <button type="submit" class="btn btn-default">Login</button>
     </form>
 </div>
 </div>

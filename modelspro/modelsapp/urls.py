@@ -1,6 +1,15 @@
 from django.conf.urls import patterns, url
 
 urlpatterns = patterns('modelsapp.views',
+    url(r'^Contacts/admin/approveleave_form/$','approveleave_form',name='approveleave_form'),
+    url(r'^Contacts/admin/approveleaveform/(\d+)/$','approveleaveform',name='approveleaveform'),
+    url(r'^Contacts/admin/approveleave/$', 'approveleave', name='approveleave'),
+    url(r'^Contacts/applyleave/$', 'applyleaveform', name='applyleaveform'),
+    url(r'^Contacts/admin/releaseleaves/$', 'releaseleaves', name='releaseleaves'),
+    url(r'^Contacts/admin/skilltitleaddform/$', 'skilltitleaddform', name='skilltitleaddform'),
+    url(r'^Contacts/admin/addholidayform/$', 'addholidayform', name='addholidayform'),
+    url(r'^Contacts/admin/skillsearchform/$', 'skillsearchform', name='skillsearchform'),
+    url(r'^Contacts/skillcontactaddform/$', 'skillcontactaddform', name='skillcontactaddform'),
     url(r'^Contacts/admin/contactform/$', 'contactform', name='contactform'),
     url(r'^Contacts/admin/jobtitleform/$', 'jobtitleform', name='jobtitleform'),
     url(r'^Contacts/admin/departmentform/$', 'departmentform', name='departmentform'),

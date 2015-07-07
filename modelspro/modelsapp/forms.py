@@ -16,6 +16,10 @@ class SupervisorForm(forms.Form):
 class ViewContactForm(forms.Form):
     con_id=forms.IntegerField()
 
+class SkillTitleForm(forms.Form):
+    skill_title=forms.CharField(help_text ='max.30 characters')
+    #skill_title=forms.CharField()
+
 class ContactForm(forms.Form):
     picture = forms.FileField(
         label='Contact Picture',
@@ -26,6 +30,7 @@ class ContactForm(forms.Form):
     first_name=forms.CharField(help_text ='max.30 characters')
     last_name=forms.CharField(help_text ='max.30 characters')
     sur_name=forms.CharField(help_text ='max.30 characters')
+    log_name=forms.CharField(help_text ='max.10 characters')
     email=forms.EmailField(help_text ='max.30 characters')
     emp_id=forms.IntegerField()
     phone=forms.IntegerField()
